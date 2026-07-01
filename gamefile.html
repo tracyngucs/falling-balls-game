@@ -437,7 +437,10 @@
       gravity: 850,
       radius,
       scored: false,
-      bounced: false
+      bounceCount: 0,
+      maxBounces: 1 + Math.floor(Math.random() * 3), // 1, 2, or 3 bounces before exiting
+      exiting: false,
+      trail: []
     });
   }
 
@@ -526,6 +529,22 @@
 
   function drawBalls() {
     for (const b of balls) {
+      // Motion trail
+      if (b.trail.length > 1) {
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = Math.max(1.5, b.radius * 0.08);
+        ctx.setLineDash(b.exiting ? [] : [5, 5]);
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.moveTo(b.trail[0].x, b.trail[0].y);
+        for (let t = 1; t < b.trail.length; t++) {
+          ctx.lineTo(b.trail[t].x, b.trail[t].y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
       ctx.fillStyle = '#fff';
@@ -571,29 +590,33 @@
     for (let i = balls.length - 1; i >= 0; i--) {
       const b = balls[i];
 
-      // Gravity only applies BEFORE the bounce
-      if (!b.bounced) {
+      // Gravity only applies while the ball hasn't started its final straight-line exit
+      if (!b.exiting) {
         b.vy += b.gravity * dtS;
       }
 
       b.x += b.vx * dtS;
       b.y += b.vy * dtS;
 
-      // Bounce once
-      if (!b.bounced && b.y + b.radius >= groundY) {
+      // Leave a fading trail behind the ball for the motion-line look
+      b.trail.push({ x: b.x, y: b.y });
+      if (b.trail.length > 7) b.trail.shift();
+
+      // Ground contact: reflect the velocity like a real bounce (mirrors the
+      // incoming angle into a clean V-shape, same horizontal direction kept)
+      if (!b.exiting && b.y + b.radius >= groundY) {
         b.y = groundY - b.radius;
+        b.bounceCount++;
 
-        // Send the ball sideways
-        const dir = b.vx >= 0 ? 1 : -1;
-        b.vx = dir * (Math.abs(b.vx) + 350);
+        b.vy = -Math.abs(b.vy) * 0.82;
+        b.vx *= 1.08;
 
-        // Small upward kick only
-        b.vy = -120;
-
-        // Stop gravity after bounce
-        b.gravity = 0;
-
-        b.bounced = true;
+        if (b.bounceCount >= b.maxBounces) {
+          // Final bounce: freeze gravity so it rides that reflected angle
+          // in a straight line off the top corner, like a thrown line
+          b.gravity = 0;
+          b.exiting = true;
+        }
       }
 
       if (checkCollision(b)) {
@@ -601,8 +624,9 @@
         return;
       }
 
-      // Remove once it leaves either side
-      if (b.x < -b.radius - 80 || b.x > W + b.radius + 80) {
+      // Remove once it leaves either side or exits off the top
+      if (b.x < -b.radius - 80 || b.x > W + b.radius + 80 || b.y < -b.radius - 100) {
+
         if (!b.scored) {
           b.scored = true;
           score++;
