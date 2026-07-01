@@ -162,6 +162,7 @@
     z-index: 50;
     text-align: center;
     padding: 30px;
+    pointer-events: none;
   }
 
   .rotateHint.show {
@@ -187,20 +188,32 @@
     line-height: 1.5;
   }
 
-  .controlToggle {
+  .pauseBtn {
     position: absolute;
-    bottom: 14px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 11px;
-    letter-spacing: 1px;
-    color: #000;
-    opacity: 0.45;
-    z-index: 5;
-    border: 1px solid #000;
-    padding: 6px 14px;
+    top: 14px;
+    left: 20px;
+    width: 40px;
+    height: 40px;
     background: transparent;
-    font-family: inherit;
+    border: 2px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0;
+    z-index: 6;
+    cursor: pointer;
+  }
+
+  .pauseBtn span {
+    display: block;
+    width: 4px;
+    height: 16px;
+    background: #000;
+  }
+
+  .pauseBtn:active {
+    transform: scale(0.92);
   }
 </style>
 </head>
@@ -214,6 +227,10 @@
     <div id="highScore">BEST 0</div>
   </div>
 
+  <button id="pauseBtn" class="pauseBtn hidden" aria-label="Pause">
+    <span></span><span></span>
+  </button>
+
   <!-- Start Screen -->
   <div id="startScreen" class="overlay">
     <div class="title">TILT DODGE</div>
@@ -225,6 +242,13 @@
     </div>
     <button class="btn" id="playBtn">PLAY</button>
     <div class="permNote" id="permNote"></div>
+  </div>
+
+  <!-- Pause Screen -->
+  <div id="pauseScreen" class="overlay hidden">
+    <div class="title">PAUSED</div>
+    <button class="btn" id="resumeBtn">RESUME</button>
+    <button class="btn outline" id="pauseRestartBtn">RESTART</button>
   </div>
 
   <!-- Game Over Screen -->
@@ -242,7 +266,6 @@
     <div style="font-size:12px; opacity:0.6; margin-top:8px;">THIS GAME IS LANDSCAPE ONLY</div>
   </div>
 
-  <button class="controlToggle" id="controlToggle">CONTROLS: TILT (TAP TO SWITCH)</button>
 </div>
 
 <script>
@@ -283,9 +306,10 @@
 
   // ---------------- Orientation / rotate hint ----------------
   const rotateHint = document.getElementById('rotateHint');
+  const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   function checkOrientation() {
     const isPortrait = window.innerHeight > window.innerWidth;
-    rotateHint.classList.toggle('show', isPortrait);
+    rotateHint.classList.toggle('show', isPortrait && isTouchDevice);
   }
   window.addEventListener('resize', checkOrientation);
   window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 200));
@@ -294,6 +318,7 @@
   // ---------------- Game state ----------------
   const startScreen = document.getElementById('startScreen');
   const gameOverScreen = document.getElementById('gameOverScreen');
+  const pauseScreen = document.getElementById('pauseScreen');
   const scoreEl = document.getElementById('score');
   const highScoreEl = document.getElementById('highScore');
   const finalScoreEl = document.getElementById('finalScore');
@@ -301,7 +326,9 @@
   const playBtn = document.getElementById('playBtn');
   const restartBtn = document.getElementById('restartBtn');
   const permNote = document.getElementById('permNote');
-  const controlToggleBtn = document.getElementById('controlToggle');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const pauseRestartBtn = document.getElementById('pauseRestartBtn');
 
   function loadHighScore() {
     try {
@@ -320,7 +347,7 @@
 
   let highScore = loadHighScore();
   let score = 0;
-  let gameState = 'start'; // 'start' | 'playing' | 'over'
+  let gameState = 'start'; // 'start' | 'playing' | 'paused' | 'over'
   let useTilt = true;
   let lastTime = 0;
   let balls = [];
@@ -402,11 +429,6 @@
   window.addEventListener('keyup', (e) => {
     if (e.key === 'ArrowLeft') keys.left = false;
     if (e.key === 'ArrowRight') keys.right = false;
-  });
-
-  controlToggleBtn.addEventListener('click', () => {
-    useTilt = !useTilt;
-    controlToggleBtn.textContent = useTilt ? 'CONTROLS: TILT (TAP TO SWITCH)' : 'CONTROLS: DRAG (TAP TO SWITCH)';
   });
 
   // ---------------- Ball spawning ----------------
@@ -660,12 +682,29 @@
     gameState = 'playing';
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
+    pauseScreen.classList.add('hidden');
+    pauseBtn.classList.remove('hidden');
+    lastTime = 0;
+    requestAnimationFrame(loop);
+  }
+
+  function pauseGame() {
+    if (gameState !== 'playing') return;
+    gameState = 'paused';
+    pauseScreen.classList.remove('hidden');
+  }
+
+  function resumeGame() {
+    if (gameState !== 'paused') return;
+    gameState = 'playing';
+    pauseScreen.classList.add('hidden');
     lastTime = 0;
     requestAnimationFrame(loop);
   }
 
   function endGame() {
     gameState = 'over';
+    pauseBtn.classList.add('hidden');
     if (score > highScore) {
       highScore = score;
       saveHighScore(highScore);
@@ -678,6 +717,10 @@
     gameOverScreen.classList.remove('hidden');
   }
 
+  pauseBtn.addEventListener('click', pauseGame);
+  resumeBtn.addEventListener('click', resumeGame);
+  pauseRestartBtn.addEventListener('click', startGame);
+
   // ---------------- Motion permission (iOS) ----------------
   function requestMotionPermission() {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -689,14 +732,12 @@
             useTilt = true;
           } else {
             useTilt = false;
-            controlToggleBtn.textContent = 'CONTROLS: DRAG (TAP TO SWITCH)';
             permNote.textContent = 'Motion access denied — using drag controls instead.';
           }
           startGame();
         })
         .catch(() => {
           useTilt = false;
-          controlToggleBtn.textContent = 'CONTROLS: DRAG (TAP TO SWITCH)';
           startGame();
         });
     } else if (window.DeviceOrientationEvent) {
@@ -704,7 +745,6 @@
       startGame();
     } else {
       useTilt = false;
-      controlToggleBtn.textContent = 'CONTROLS: DRAG (TAP TO SWITCH)';
       permNote.textContent = 'No tilt sensor detected — using drag controls.';
       startGame();
     }
