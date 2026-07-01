@@ -417,14 +417,13 @@
     else if (sizeRoll < 0.78) radius = 24 + Math.random() * 10; // medium
     else radius = 38 + Math.random() * 14;                      // large
 
-    // Random fall angle: tilted up to ~55 degrees off vertical, either direction
-    const maxTiltDeg = 55;
-    const tiltDeg = (Math.random() * 2 - 1) * maxTiltDeg;
+    // Fall angle: roughly 45 degrees off vertical, either direction
+    const tiltDeg = 45 * (Math.random() < 0.5 ? -1 : 1) + (Math.random() * 10 - 5);
     const theta = tiltDeg * Math.PI / 180; // radians from vertical
 
-    const baseSpeed = (60 + Math.random() * 60) * fallSpeedMultiplier;
-    const vx = Math.sin(theta) * baseSpeed;
-    const vy = Math.cos(theta) * baseSpeed * 0.4;
+    const speed = (260 + Math.random() * 80) * fallSpeedMultiplier;
+    const vx = Math.sin(theta) * speed;
+    const vy = Math.cos(theta) * speed;
 
     // Spawn x: bias inward when angle is steep so the ball still crosses the screen
     let x = Math.random() * W;
@@ -432,15 +431,14 @@
     else if (tiltDeg < -25) x = W * 0.4 + Math.random() * (W * 0.6);
 
     balls.push({
-      x, y: -radius - 150,
+      x, y: -radius - 40,
       vx, vy,
-      gravity: 850,
+      gravity: 500,
       radius,
       scored: false,
       bounceCount: 0,
       maxBounces: 1 + Math.floor(Math.random() * 3), // 1, 2, or 3 bounces before exiting
-      exiting: false,
-      trail: []
+      exiting: false
     });
   }
 
@@ -529,22 +527,6 @@
 
   function drawBalls() {
     for (const b of balls) {
-      // Motion trail
-      if (b.trail.length > 1) {
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = Math.max(1.5, b.radius * 0.08);
-        ctx.setLineDash(b.exiting ? [] : [5, 5]);
-        ctx.globalAlpha = 0.35;
-        ctx.beginPath();
-        ctx.moveTo(b.trail[0].x, b.trail[0].y);
-        for (let t = 1; t < b.trail.length; t++) {
-          ctx.lineTo(b.trail[t].x, b.trail[t].y);
-        }
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-      }
-
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
       ctx.fillStyle = '#fff';
@@ -598,10 +580,6 @@
       b.x += b.vx * dtS;
       b.y += b.vy * dtS;
 
-      // Leave a fading trail behind the ball for the motion-line look
-      b.trail.push({ x: b.x, y: b.y });
-      if (b.trail.length > 7) b.trail.shift();
-
       // Ground contact: reflect the velocity like a real bounce (mirrors the
       // incoming angle into a clean V-shape, same horizontal direction kept)
       if (!b.exiting && b.y + b.radius >= groundY) {
@@ -624,8 +602,9 @@
         return;
       }
 
-      // Remove once it leaves either side or exits off the top
-      if (b.x < -b.radius - 80 || b.x > W + b.radius + 80 || b.y < -b.radius - 100) {
+      // Remove once it leaves either side, or exits off the top after bouncing
+      const topExit = b.bounceCount > 0 && b.y < -b.radius - 100;
+      if (b.x < -b.radius - 80 || b.x > W + b.radius + 80 || topExit) {
 
         if (!b.scored) {
           b.scored = true;
