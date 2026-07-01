@@ -16,7 +16,7 @@
   html, body {
     width: 100%;
     height: 100%;
-    background: #000;
+    background: #fff;
     overflow: hidden;
     touch-action: none;
     font-family: 'Courier New', Courier, monospace;
@@ -26,14 +26,14 @@
     position: relative;
     width: 100vw;
     height: 100vh;
-    background: #000;
+    background: #fff;
   }
 
   canvas {
     display: block;
     width: 100%;
     height: 100%;
-    background: #000;
+    background: #fff;
   }
 
   /* ---------- HUD ---------- */
@@ -43,7 +43,7 @@
     right: 0;
     padding: 14px 20px;
     text-align: right;
-    color: #fff;
+    color: #000;
     pointer-events: none;
     z-index: 5;
   }
@@ -67,12 +67,12 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: #000;
+    background: #fff;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: #000;
     text-align: center;
     z-index: 10;
     padding: 20px;
@@ -87,7 +87,7 @@
     font-weight: bold;
     letter-spacing: 4px;
     margin-bottom: 6px;
-    border: 3px solid #fff;
+    border: 3px solid #000;
     padding: 10px 28px;
   }
 
@@ -102,9 +102,9 @@
   }
 
   .btn {
-    background: #fff;
-    color: #000;
-    border: 3px solid #fff;
+    background: #000;
+    color: #fff;
+    border: 3px solid #000;
     font-family: inherit;
     font-weight: bold;
     font-size: clamp(16px, 3vw, 20px);
@@ -121,7 +121,7 @@
 
   .btn.outline {
     background: transparent;
-    color: #fff;
+    color: #000;
   }
 
   .gameOverScore {
@@ -153,8 +153,8 @@
   .rotateHint {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
-    background: #000;
-    color: #fff;
+    background: #fff;
+    color: #000;
     display: none;
     flex-direction: column;
     align-items: center;
@@ -194,10 +194,10 @@
     transform: translateX(-50%);
     font-size: 11px;
     letter-spacing: 1px;
-    color: #fff;
+    color: #000;
     opacity: 0.45;
     z-index: 5;
-    border: 1px solid #fff;
+    border: 1px solid #000;
     padding: 6px 14px;
     background: transparent;
     font-family: inherit;
@@ -434,7 +434,7 @@
     balls.push({
       x, y: -radius - 150,
       vx, vy,
-      gravity: 900,
+      gravity: 850,
       radius,
       scored: false,
       bounced: false
@@ -465,11 +465,11 @@
 
   // ---------------- Drawing ----------------
   function drawGround() {
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, groundY + 1);
-    ctx.lineTo(W, groundY + 1);
+    ctx.moveTo(0, groundY);
+    ctx.lineTo(W, groundY);
     ctx.stroke();
   }
 
@@ -481,8 +481,8 @@
     const bodyTop = yBase - h + headR * 2;
     const bodyBottom = yBase - h * 0.32;
 
-    ctx.strokeStyle = '#fff';
-    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.fillStyle = '#000';
     ctx.lineWidth = 3.5;
     ctx.lineCap = 'round';
 
@@ -571,15 +571,28 @@
     for (let i = balls.length - 1; i >= 0; i--) {
       const b = balls[i];
 
-      b.vy += b.gravity * dtS;
+      // Gravity only applies BEFORE the bounce
+      if (!b.bounced) {
+        b.vy += b.gravity * dtS;
+      }
+
       b.x += b.vx * dtS;
       b.y += b.vy * dtS;
 
-      // Bounce off the ground once, then exit upward/sideways off screen
+      // Bounce once
       if (!b.bounced && b.y + b.radius >= groundY) {
         b.y = groundY - b.radius;
-        b.vy *= -0.55;
-        b.vx *= 0.95;
+
+        // Send the ball sideways
+        const dir = b.vx >= 0 ? 1 : -1;
+        b.vx = dir * (Math.abs(b.vx) + 350);
+
+        // Small upward kick only
+        b.vy = -120;
+
+        // Stop gravity after bounce
+        b.gravity = 0;
+
         b.bounced = true;
       }
 
@@ -588,8 +601,8 @@
         return;
       }
 
-      const offScreen = b.y - b.radius > H + 100 || b.x < -200 || b.x > W + 200;
-      if (offScreen) {
+      // Remove once it leaves either side
+      if (b.x < -b.radius - 80 || b.x > W + b.radius + 80) {
         if (!b.scored) {
           b.scored = true;
           score++;
